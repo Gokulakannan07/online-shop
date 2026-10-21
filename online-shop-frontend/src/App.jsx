@@ -1,95 +1,204 @@
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 
-const API = "/api";
-const API_URL = "http://localhost:8080/api/products";
+// ======================================================
+// API CONFIGURATION
+// ======================================================
 
-const CREATE_ORDER_URL =
-  "http://localhost:8080/api/payment/create-order";
+const API =
+  import.meta.env.VITE_API_URL || "http://localhost:8080/api";
 
-const VERIFY_PAYMENT_URL =
-  "http://localhost:8080/api/payment/verify";
+const CART_KEY = "shop-cart";
+const USER_KEY = "shop-user";
+const TOKEN_KEY = "shop-token";
 
-const RAZORPAY_SCRIPT =
-  "https://checkout.razorpay.com/v1/checkout.js";
+// ======================================================
+// CATEGORIES
+// ======================================================
 
 const CATEGORIES = [
   "All",
   "Electronics",
   "Fashion",
-  "Accessories",
   "Home",
   "Beauty",
-  "Sports",
+  "Accessories",
 ];
+
+// ======================================================
+// DEMO PRODUCT IMAGES
+// ======================================================
 
 const DEMO_IMAGES = {
   Electronics:
-    "https://images.unsplash.com/photo-1498049794561-7780e7231661?auto=format&fit=crop&w=700&q=80",
+    "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=700",
   Fashion:
-    "https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&w=700&q=80",
-  Accessories:
-    "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=700&q=80",
+    "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=700",
   Home:
-    "https://images.unsplash.com/photo-1494438639946-1ebd1d20bf85?auto=format&fit=crop&w=700&q=80",
+    "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?w=700",
   Beauty:
-    "https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&w=700&q=80",
-  Sports:
-    "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=700&q=80",
-  Default:
-    "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=700&q=80",
+    "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=700",
+  Accessories:
+    "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=700",
 };
 
-function getProductId(product) {
-  return product.id ?? product.productId;
+// ======================================================
+// FALLBACK PRODUCTS
+// Used if the backend products endpoint is unavailable.
+// ======================================================
+
+const FALLBACK_PRODUCTS = [
+  {
+    id: 1,
+    name: "Wireless Headphones",
+    description: "Comfortable wireless headphones with rich sound.",
+    price: 1499,
+    category: "Electronics",
+    image:
+      "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=700",
+    stock: 20,
+  },
+  {
+    id: 2,
+    name: "Smart Watch",
+    description: "Modern smartwatch for everyday activities.",
+    price: 2499,
+    category: "Electronics",
+    image:
+      "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=700",
+    stock: 20,
+  },
+  {
+    id: 3,
+    name: "Bluetooth Speaker",
+    description: "Portable speaker with powerful audio.",
+    price: 999,
+    category: "Electronics",
+    image:
+      "https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=700",
+    stock: 20,
+  },
+  {
+    id: 4,
+    name: "Running Shoes",
+    description: "Lightweight shoes designed for daily comfort.",
+    price: 1799,
+    category: "Fashion",
+    image:
+      "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=700",
+    stock: 20,
+  },
+  {
+    id: 5,
+    name: "Classic Backpack",
+    description: "A practical backpack for work and travel.",
+    price: 899,
+    category: "Fashion",
+    image:
+      "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=700",
+    stock: 20,
+  },
+  {
+    id: 6,
+    name: "Desk Lamp",
+    description: "Minimal desk lamp for your workspace.",
+    price: 799,
+    category: "Home",
+    image:
+      "https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=700",
+    stock: 20,
+  },
+  {
+    id: 7,
+    name: "Skin Care Set",
+    description: "A simple skincare set for your daily routine.",
+    price: 1199,
+    category: "Beauty",
+    image:
+      "https://images.unsplash.com/photo-1608248543803-ba4f8c70ae0b?w=700",
+    stock: 20,
+  },
+  {
+    id: 8,
+    name: "Classic Wrist Watch",
+    description: "Elegant watch suitable for everyday use.",
+    price: 1999,
+    category: "Accessories",
+    image:
+      "https://images.unsplash.com/photo-1524805444758-089113d48a6d?w=700",
+    stock: 20,
+  },
+];
+
+// ======================================================
+// HELPER FUNCTIONS
+// ======================================================
+
+function readJSON(key, fallback) {
+  try {
+    const value = localStorage.getItem(key);
+    return value ? JSON.parse(value) : fallback;
+  } catch {
+    return fallback;
+  }
 }
 
-function getProductName(product) {
-  return product.name ?? product.title ?? "Product";
+function normalizeProduct(product, index = 0) {
+  const id =
+    product.id ??
+    product.productId ??
+    product._id ??
+    index + 1;
+
+  const category = product.category || "Electronics";
+
+  return {
+    ...product,
+    id,
+    name: product.name || product.productName || "Product",
+    description:
+      product.description || "Quality product from ShopSphere.",
+    price: Number(product.price ?? product.amount ?? 0),
+    category,
+    image:
+      product.image ||
+      product.imageUrl ||
+      product.imageURL ||
+      product.productImage ||
+      DEMO_IMAGES[category] ||
+      DEMO_IMAGES.Electronics,
+    stock: Number(product.stock ?? product.quantity ?? 999),
+  };
 }
 
-function getProductPrice(product) {
-  return Number(product.price ?? product.productPrice ?? 0);
-}
+async function requestJSON(url, options = {}) {
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
+  });
 
-function getProductImage(product) {
-  const image =
-    product.imageUrl ??
-    product.image ??
-    product.image_url ??
-    product.thumbnail;
+  const text = await response.text();
 
-  if (typeof image === "string" && image.trim()) {
-    return image;
+  let data = {};
+
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { message: text };
   }
 
-  const category = String(product.category ?? "").toLowerCase();
-
-  if (category.includes("electronic")) {
-    return DEMO_IMAGES.Electronics;
+  if (!response.ok) {
+    throw new Error(
+      data.message ||
+        data.error ||
+        `Request failed with status ${response.status}`
+    );
   }
 
-  if (category.includes("fashion") || category.includes("cloth")) {
-    return DEMO_IMAGES.Fashion;
-  }
-
-  if (category.includes("accessor")) {
-    return DEMO_IMAGES.Accessories;
-  }
-
-  if (category.includes("home")) {
-    return DEMO_IMAGES.Home;
-  }
-
-  if (category.includes("beauty")) {
-    return DEMO_IMAGES.Beauty;
-  }
-
-  if (category.includes("sport")) {
-    return DEMO_IMAGES.Sports;
-  }
-
-  return DEMO_IMAGES.Default;
+  return data;
 }
 
 function formatPrice(amount) {
@@ -97,985 +206,917 @@ function formatPrice(amount) {
     style: "currency",
     currency: "INR",
     maximumFractionDigits: 2,
-  }).format(amount);
+  }).format(Number(amount || 0));
 }
 
-function readCart() {
-  try {
-    const cart = JSON.parse(localStorage.getItem("shop-cart") || "[]");
-    return Array.isArray(cart) ? cart : [];
-  } catch {
-    return [];
-  }
-}
+// ======================================================
+// MAIN COMPONENT
+// ======================================================
 
-function readUser() {
-  try {
-    return JSON.parse(localStorage.getItem("shop-user") || "null");
-  } catch {
-    return null;
-  }
-}
+export default function App() {
+  // ----------------------------------------------------
+  // STATE
+  // ----------------------------------------------------
 
-function App() {
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [productError, setProductError] = useState("");
+  const [products, setProducts] = useState(FALLBACK_PRODUCTS);
 
-  const [user, setUser] = useState(readUser);
-  const [authMode, setAuthMode] = useState("login");
+  const [cart, setCart] = useState(() => {
+    const savedCart = readJSON(CART_KEY, []);
+    return Array.isArray(savedCart) ? savedCart : [];
+  });
+
+  const [user, setUser] = useState(() =>
+    readJSON(USER_KEY, null)
+  );
+
+  const [token, setToken] = useState(
+    () => localStorage.getItem(TOKEN_KEY) || ""
+  );
+
+  const [search, setSearch] = useState("");
+
+  const [selectedCategory, setSelectedCategory] =
+    useState("All");
+
+  const [sortBy, setSortBy] = useState("featured");
+
+  const [loadingProducts, setLoadingProducts] =
+    useState(true);
+
+  const [apiWarning, setApiWarning] = useState("");
+
+  const [cartOpen, setCartOpen] = useState(false);
+
   const [authOpen, setAuthOpen] = useState(false);
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authError, setAuthError] = useState("");
-  const [authSuccess, setAuthSuccess] = useState("");
 
-  const [form, setForm] = useState({
+  const [authMode, setAuthMode] = useState("login");
+
+  const [authLoading, setAuthLoading] = useState(false);
+
+  const [checkoutLoading, setCheckoutLoading] =
+    useState(false);
+
+  const [message, setMessage] = useState("");
+
+  const [authForm, setAuthForm] = useState({
     name: "",
     email: "",
     password: "",
   });
 
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("All");
-  const [sort, setSort] = useState("featured");
+  // ----------------------------------------------------
+  // SAVE CART
+  // ----------------------------------------------------
 
-  const [cart, setCart] = useState(readCart);
-  const [cartOpen, setCartOpen] = useState(false);
-
-  const [paymentLoading, setPaymentLoading] = useState(false);
-  const [notice, setNotice] = useState("");
-
-  // Fetch products from Spring Boot.
   useEffect(() => {
-    const controller = new AbortController();
+    localStorage.setItem(CART_KEY, JSON.stringify(cart));
+  }, [cart]);
+
+  // ----------------------------------------------------
+  // SAVE USER
+  // ----------------------------------------------------
+
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem(USER_KEY, JSON.stringify(user));
+    } else {
+      localStorage.removeItem(USER_KEY);
+    }
+  }, [user]);
+
+  // ----------------------------------------------------
+  // LOAD PRODUCTS FROM SPRING BOOT
+  // ----------------------------------------------------
+
+  useEffect(() => {
+    let cancelled = false;
 
     async function loadProducts() {
-      setLoading(true);
-      setProductError("");
+      setLoadingProducts(true);
 
       try {
-        const response = await fetch(`${API}/products`, {
-          signal: controller.signal,
-        });
+        const data = await requestJSON(`${API}/products`);
 
-        if (!response.ok) {
-          throw new Error(`Products API returned HTTP ${response.status}`);
-        }
+        if (cancelled) return;
 
-        const data = await response.json();
-
-        const list = Array.isArray(data)
+        const productList = Array.isArray(data)
           ? data
-          : Array.isArray(data.content)
-            ? data.content
-            : Array.isArray(data.products)
-              ? data.products
-              : null;
+          : data.products || data.content || data.data || [];
 
-        if (!list) {
-          throw new Error("The products API did not return a product array.");
+        if (productList.length > 0) {
+          setProducts(productList.map(normalizeProduct));
+          setApiWarning("");
+        } else {
+          setProducts(FALLBACK_PRODUCTS);
+          setApiWarning(
+            "No products were returned by the backend. Showing demo products."
+          );
         }
-
-        setProducts(list);
       } catch (error) {
-        if (error.name !== "AbortError") {
-          console.error("Product loading failed:", error);
-          setProductError(error.message);
-        }
+        if (cancelled) return;
+
+        console.error("Product loading error:", error);
+
+        setProducts(FALLBACK_PRODUCTS);
+
+        setApiWarning(
+          "Backend products could not be loaded. Demo products are shown; checkout still requires a working backend."
+        );
       } finally {
-        if (!controller.signal.aborted) {
-          setLoading(false);
+        if (!cancelled) {
+          setLoadingProducts(false);
         }
       }
     }
 
     loadProducts();
 
-    return () => controller.abort();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // Persist cart.
-  useEffect(() => {
-    localStorage.setItem("shop-cart", JSON.stringify(cart));
-  }, [cart]);
+  // ----------------------------------------------------
+  // FILTER AND SORT PRODUCTS
+  // ----------------------------------------------------
 
-  // Product filtering and sorting.
   const filteredProducts = useMemo(() => {
     let result = products.filter((product) => {
-      const name = getProductName(product).toLowerCase();
-      const description = String(product.description ?? "").toLowerCase();
-      const productCategory = String(product.category ?? "");
-
       const matchesSearch =
-        name.includes(search.toLowerCase()) ||
-        description.includes(search.toLowerCase());
+        product.name
+          .toLowerCase()
+          .includes(search.toLowerCase()) ||
+        product.description
+          .toLowerCase()
+          .includes(search.toLowerCase()) ||
+        product.category
+          .toLowerCase()
+          .includes(search.toLowerCase());
 
       const matchesCategory =
-        category === "All" ||
-        productCategory.toLowerCase() === category.toLowerCase();
+        selectedCategory === "All" ||
+        product.category.toLowerCase() ===
+          selectedCategory.toLowerCase();
 
       return matchesSearch && matchesCategory;
     });
 
-    if (sort === "low") {
-      result = [...result].sort(
-        (a, b) => getProductPrice(a) - getProductPrice(b)
-      );
-    }
-
-    if (sort === "high") {
-      result = [...result].sort(
-        (a, b) => getProductPrice(b) - getProductPrice(a)
-      );
-    }
-
-    if (sort === "name") {
-      result = [...result].sort((a, b) =>
-        getProductName(a).localeCompare(getProductName(b))
-      );
+    if (sortBy === "price-low") {
+      result.sort((a, b) => a.price - b.price);
+    } else if (sortBy === "price-high") {
+      result.sort((a, b) => b.price - a.price);
+    } else if (sortBy === "name") {
+      result.sort((a, b) => a.name.localeCompare(b.name));
     }
 
     return result;
-  }, [products, search, category, sort]);
+  }, [products, search, selectedCategory, sortBy]);
+
+  // ----------------------------------------------------
+  // CART TOTALS
+  // ----------------------------------------------------
 
   const cartCount = cart.reduce(
-    (total, item) => total + item.quantity,
+    (total, item) => total + Number(item.quantity || 0),
     0
   );
 
   const subtotal = cart.reduce(
-    (total, item) => total + item.price * item.quantity,
+    (total, item) =>
+      total +
+      Number(item.price || 0) *
+        Number(item.quantity || 0),
     0
   );
 
+  // ----------------------------------------------------
+  // ADD TO CART
+  // ----------------------------------------------------
+
   function addToCart(product) {
-    const id = getProductId(product);
+    const normalized = normalizeProduct(product);
 
-    if (id == null) {
-      setNotice("This product is missing its ID.");
-      return;
-    }
-
-    const price = getProductPrice(product);
-
-    if (!Number.isFinite(price) || price <= 0) {
-      setNotice("This product has an invalid price.");
-      return;
-    }
-
-    setCart((current) => {
-      const existing = current.find(
-        (item) => String(item.id) === String(id)
+    setCart((previousCart) => {
+      const existing = previousCart.find(
+        (item) => String(item.id) === String(normalized.id)
       );
 
       if (existing) {
-        return current.map((item) =>
-          String(item.id) === String(id)
-            ? { ...item, quantity: item.quantity + 1 }
+        return previousCart.map((item) =>
+          String(item.id) === String(normalized.id)
+            ? {
+                ...item,
+                quantity: Number(item.quantity || 1) + 1,
+              }
             : item
         );
       }
 
       return [
-        ...current,
+        ...previousCart,
         {
-          id,
-          name: getProductName(product),
-          price,
-          image: getProductImage(product),
+          ...normalized,
           quantity: 1,
         },
       ];
     });
 
-    setNotice(`${getProductName(product)} added to your cart.`);
+    setMessage(`${normalized.name} added to cart.`);
+    setCartOpen(true);
   }
 
-  function changeQuantity(id, amount) {
-    setCart((current) =>
-      current
-        .map((item) =>
-          String(item.id) === String(id)
-            ? { ...item, quantity: item.quantity + amount }
-            : item
-        )
+  // ----------------------------------------------------
+  // UPDATE CART QUANTITY
+  // ----------------------------------------------------
+
+  function updateQuantity(productId, change) {
+    setCart((previousCart) =>
+      previousCart
+        .map((item) => {
+          if (String(item.id) !== String(productId)) {
+            return item;
+          }
+
+          return {
+            ...item,
+            quantity: Number(item.quantity || 1) + change,
+          };
+        })
         .filter((item) => item.quantity > 0)
     );
   }
 
-  function removeFromCart(id) {
-    setCart((current) =>
-      current.filter((item) => String(item.id) !== String(id))
+  // ----------------------------------------------------
+  // REMOVE FROM CART
+  // ----------------------------------------------------
+
+  function removeFromCart(productId) {
+    setCart((previousCart) =>
+      previousCart.filter(
+        (item) => String(item.id) !== String(productId)
+      )
     );
   }
 
-  function openAuth(mode = "login") {
-    setAuthMode(mode);
-    setAuthError("");
-    setAuthSuccess("");
-    setAuthOpen(true);
-  }
+  // ----------------------------------------------------
+  // LOGIN AND REGISTER FORM
+  // ----------------------------------------------------
 
-  function updateForm(event) {
+  function handleAuthInput(event) {
     const { name, value } = event.target;
 
-    setForm((current) => ({
-      ...current,
+    setAuthForm((previous) => ({
+      ...previous,
       [name]: value,
     }));
   }
 
-  async function submitAuth(event) {
+  // ----------------------------------------------------
+  // LOGIN / REGISTER
+  // ----------------------------------------------------
+
+  async function handleAuthSubmit(event) {
     event.preventDefault();
 
-    setAuthError("");
-    setAuthSuccess("");
     setAuthLoading(true);
+    setMessage("");
 
     try {
-      const endpoint =
-        authMode === "login"
-          ? `${API}/auth/login`
-          : `${API}/auth/register`;
+      const isRegister = authMode === "register";
 
-      const payload =
-        authMode === "login"
-          ? {
-              email: form.email.trim(),
-              password: form.password,
-            }
-          : {
-              name: form.name.trim(),
-              email: form.email.trim(),
-              password: form.password,
-            };
+      const endpoint = isRegister
+        ? `${API}/auth/register`
+        : `${API}/auth/login`;
 
-      const response = await fetch(endpoint, {
+      const payload = isRegister
+        ? {
+            name: authForm.name.trim(),
+            fullName: authForm.name.trim(),
+            email: authForm.email.trim(),
+            password: authForm.password,
+          }
+        : {
+            email: authForm.email.trim(),
+            password: authForm.password,
+          };
+
+      const result = await requestJSON(endpoint, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
         body: JSON.stringify(payload),
       });
 
-      const result = await response.json().catch(() => ({}));
+      const responseUser =
+        result.user ||
+        result.customer ||
+        result.data?.user ||
+        result.data ||
+        result;
 
-      if (!response.ok) {
-        throw new Error(
-          result.message ||
-            result.error ||
-            `Authentication failed: HTTP ${response.status}`
-        );
-      }
+      const name =
+        responseUser.name ||
+        responseUser.fullName ||
+        responseUser.customerName ||
+        (isRegister ? authForm.name.trim() : "") ||
+        authForm.email.split("@")[0];
 
-      if (authMode === "register") {
-        setAuthSuccess("Registration successful. Please log in.");
-        setAuthMode("login");
+      const email =
+        responseUser.email || authForm.email.trim();
 
-        setForm((current) => ({
-          ...current,
-          name: "",
-          password: "",
-        }));
-
-        return;
-      }
-
-      const authenticatedUser =
-        result.user ??
-        result.customer ??
-        (result.email ? result : null);
-
-      const token = result.token ?? result.accessToken;
-
-      if (!authenticatedUser && !token) {
-        throw new Error(
-          "Login succeeded, but the API response did not include a user or token. Check your backend response format."
-        );
-      }
-
-      const savedUser = {
-        name:
-          authenticatedUser?.name ??
-          authenticatedUser?.fullName ??
-          form.email.split("@")[0],
-        email: authenticatedUser?.email ?? form.email.trim(),
+      const authenticatedUser = {
+        ...responseUser,
+        name,
+        fullName: name,
+        customerName: name,
+        email,
       };
 
-      localStorage.setItem("shop-user", JSON.stringify(savedUser));
+      const receivedToken =
+        result.token ||
+        result.accessToken ||
+        result.jwt ||
+        result.data?.token ||
+        "";
 
-      if (token) {
-        localStorage.setItem("shop-token", token);
+      setUser(authenticatedUser);
+      setToken(receivedToken);
+
+      if (receivedToken) {
+        localStorage.setItem(TOKEN_KEY, receivedToken);
       }
 
-      setUser(savedUser);
       setAuthOpen(false);
 
-      setForm({
+      setAuthForm({
         name: "",
         email: "",
         password: "",
       });
 
-      setNotice("Welcome! You are logged in.");
+      setMessage(
+        isRegister
+          ? "Account created successfully."
+          : "Login successful."
+      );
     } catch (error) {
       console.error("Authentication error:", error);
-      setAuthError(error.message);
+
+      setMessage(
+        `Authentication failed: ${error.message}`
+      );
     } finally {
       setAuthLoading(false);
     }
   }
 
-  function logout() {
-    localStorage.removeItem("shop-user");
-    localStorage.removeItem("shop-token");
+  // ----------------------------------------------------
+  // LOGOUT
+  // ----------------------------------------------------
 
+  function handleLogout() {
     setUser(null);
-    setNotice("You have logged out.");
+    setToken("");
+
+    localStorage.removeItem(USER_KEY);
+    localStorage.removeItem(TOKEN_KEY);
+
+    setMessage("You have logged out.");
   }
 
-  function loadRazorpay() {
-    return new Promise((resolve, reject) => {
-      if (window.Razorpay) {
-        resolve(true);
-        return;
-      }
-
-      const existing = document.querySelector(
-        'script[src="https://checkout.razorpay.com/v1/checkout.js"]'
-      );
-
-      if (existing) {
-        existing.addEventListener("load", () => resolve(true), {
-          once: true,
-        });
-
-        existing.addEventListener(
-          "error",
-          () => reject(new Error("Could not load Razorpay checkout.")),
-          { once: true }
-        );
-
-        return;
-      }
-
-      const script = document.createElement("script");
-
-      script.src = "https://checkout.razorpay.com/v1/checkout.js";
-      script.async = true;
-      script.onload = () => resolve(true);
-
-      script.onerror = () =>
-        reject(new Error("Could not load Razorpay checkout."));
-
-      document.body.appendChild(script);
-    });
-  }
+  // ----------------------------------------------------
+  // CHECKOUT - CASH ON DELIVERY
+  // ----------------------------------------------------
 
   async function checkout() {
-    if (cart.length === 0) {
-      setNotice("Your cart is empty.");
+    if (checkoutLoading) return;
+
+    setMessage("");
+
+    if (!cart.length) {
+      setMessage("Your cart is empty.");
       return;
     }
 
-    if (!user) {
-      setCartOpen(false);
-      openAuth("login");
-      setAuthError("Please log in before checking out.");
-      return;
-    }
+    // Retrieve the customer name from the current user.
+    const storedUser = readJSON(USER_KEY, null);
 
-    setPaymentLoading(true);
-    setNotice("");
+    let customerName = String(
+      user?.customerName ||
+        user?.fullName ||
+        user?.name ||
+        user?.username ||
+        storedUser?.customerName ||
+        storedUser?.fullName ||
+        storedUser?.name ||
+        storedUser?.username ||
+        ""
+    ).trim();
 
-    try {
-      await loadRazorpay();
-
-      // This sends the amount in paise.
-      // Production apps should validate product IDs, prices and quantities
-      // on the backend before creating an order.
-      const orderResponse = await fetch(
-        `${API}/payment/create-order`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(localStorage.getItem("shop-token")
-              ? {
-                  Authorization: `Bearer ${localStorage.getItem("shop-token")}`,
-                }
-              : {}),
-          },
-          body: JSON.stringify({
-            amount: Math.round(subtotal * 100),
-          }),
-        }
+    // If no name was saved during login, ask for it.
+    if (!customerName) {
+      const enteredName = window.prompt(
+        "Enter your full name for delivery:"
       );
 
-      const order = await orderResponse.json().catch(() => ({}));
-
-      if (!orderResponse.ok) {
-        throw new Error(
-          order.message ||
-            order.error ||
-            "Could not create the Razorpay order."
-        );
+      if (!enteredName || !enteredName.trim()) {
+        setMessage("Customer name is required.");
+        return;
       }
 
-      const orderId = order.id ?? order.orderId;
-      const key = order.key ?? order.keyId ?? order.razorpayKeyId;
+      customerName = enteredName.trim();
 
-      if (!orderId || !key) {
-        throw new Error(
-          "The backend response is missing the Razorpay order ID or key."
-        );
-      }
-
-      const options = {
-        key,
-        amount: order.amount ?? Math.round(subtotal * 100),
-        currency: order.currency ?? "INR",
-        name: "ShopSphere",
-        description: "Online Shop Purchase",
-        order_id: orderId,
-
-        prefill: {
-          name: user.name,
-          email: user.email,
-        },
-
-        theme: {
-          color: "#635bff",
-        },
-
-        handler: async function (payment) {
-          try {
-            const verifyResponse = await fetch(
-              `${API}/payment/verify`,
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  ...(localStorage.getItem("shop-token")
-                    ? {
-                        Authorization: `Bearer ${localStorage.getItem("shop-token")}`,
-                      }
-                    : {}),
-                },
-                body: JSON.stringify({
-                  razorpay_order_id: payment.razorpay_order_id,
-                  razorpay_payment_id: payment.razorpay_payment_id,
-                  razorpay_signature: payment.razorpay_signature,
-                }),
-              }
-            );
-
-            const verification = await verifyResponse
-              .json()
-              .catch(() => ({}));
-
-            if (
-              !verifyResponse.ok ||
-              verification.verified !== true
-            ) {
-              throw new Error(
-                verification.message ||
-                  verification.error ||
-                  "Payment verification failed."
-              );
-            }
-
-            setCart([]);
-            setCartOpen(false);
-
-            setNotice(
-              `Payment successful! Payment ID: ${payment.razorpay_payment_id}`
-            );
-          } catch (error) {
-            console.error("Payment verification error:", error);
-
-            setNotice(
-              `Payment was submitted, but verification failed. Do not retry blindly. Payment ID: ${payment.razorpay_payment_id}`
-            );
-          } finally {
-            setPaymentLoading(false);
-          }
-        },
-
-        modal: {
-          ondismiss: () => {
-            setPaymentLoading(false);
-            setNotice("Payment window closed.");
-          },
-        },
+      const updatedUser = {
+        ...(user || {}),
+        name: customerName,
+        fullName: customerName,
+        customerName,
       };
 
-      const razorpay = new window.Razorpay(options);
+      setUser(updatedUser);
+    }
 
-      razorpay.on("payment.failed", (event) => {
-        console.error("Razorpay payment failed:", event.error);
+    const phone = window.prompt(
+      "Enter your phone number:"
+    );
 
-        setPaymentLoading(false);
+    if (!phone || !phone.trim()) {
+      setMessage("Phone number is required.");
+      return;
+    }
 
-        setNotice(
-          event.error?.description || "Payment failed. Please try again."
-        );
+    const address = window.prompt(
+      "Enter your complete delivery address:"
+    );
+
+    if (!address || !address.trim()) {
+      setMessage("Delivery address is required.");
+      return;
+    }
+
+    // Convert cart items to the DTO structure expected
+    // by CreateOrderRequest and OrderItemRequest.
+    const items = cart.map((item) => ({
+      productId: Number(item.productId ?? item.id),
+      name: item.name,
+      price: Number(item.price),
+      quantity: Number(item.quantity || 1),
+    }));
+
+    const invalidItem = items.some(
+      (item) =>
+        !Number.isFinite(item.productId) ||
+        item.productId <= 0 ||
+        !Number.isFinite(item.price) ||
+        item.price < 0 ||
+        !Number.isInteger(item.quantity) ||
+        item.quantity <= 0
+    );
+
+    if (invalidItem) {
+      setMessage(
+        "One or more cart items have invalid product details. Please refresh the products and try again."
+      );
+      return;
+    }
+
+    const orderPayload = {
+      customerName,
+      phone: phone.trim(),
+      address: address.trim(),
+      paymentMethod: "COD",
+      items,
+    };
+
+    // Inspect this payload in the browser console if needed.
+    console.log("Submitting COD order:", orderPayload);
+
+    setCheckoutLoading(true);
+
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+      };
+
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const result = await requestJSON(`${API}/orders`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(orderPayload),
       });
 
-      razorpay.open();
+      console.log("Order response:", result);
+
+      setCart([]);
+      setCartOpen(false);
+
+      const orderId =
+        result.orderId ?? result.id ?? "Confirmed";
+
+      setMessage(
+        `Order placed successfully! Order ID: ${orderId}. Payment method: Cash on Delivery.`
+      );
+
+      window.alert(
+        `Order placed successfully!\n\nOrder ID: ${orderId}\nCustomer: ${customerName}\nTotal: ${formatPrice(subtotal)}\nPayment: Cash on Delivery`
+      );
     } catch (error) {
       console.error("Checkout error:", error);
 
-      setNotice(error.message || "Unable to start payment.");
-
-      setPaymentLoading(false);
+      setMessage(`Could not place order: ${error.message}`);
+    } finally {
+      setCheckoutLoading(false);
     }
   }
 
+  // ----------------------------------------------------
+  // UI
+  // ----------------------------------------------------
+
   return (
-    <div className="shop">
-      <div className="announcement">
-        ✨ Discover something you'll love — welcome to ShopSphere
-      </div>
-
-      <header className="header">
-        <a href="#home" className="brand">
-          <span className="brand-icon">S</span>
-          <span>ShopSphere</span>
-        </a>
-
-        <nav className="desktop-nav">
-          <a href="#home">Home</a>
-          <a href="#products">Products</a>
-          <a href="#benefits">Why us?</a>
-        </nav>
-
-        <div className="header-actions">
-          {user ? (
-            <div className="user-area">
-              <span className="welcome-user">Hi, {user.name}</span>
-
-              <button className="text-button" onClick={logout}>
-                Logout
-              </button>
-            </div>
-          ) : (
-            <button
-              className="login-button"
-              onClick={() => openAuth("login")}
-            >
-              Log in
-            </button>
-          )}
-
-          <button
-            className="cart-button"
-            onClick={() => setCartOpen(true)}
-            aria-label="Open shopping cart"
+    <div className="shop-app">
+      {/* HEADER */}
+      <header className="shop-header">
+        <div className="shop-container header-content">
+          <a
+            href="#home"
+            className="shop-logo"
+            onClick={() => {
+              setSearch("");
+              setSelectedCategory("All");
+            }}
           >
-            🛍️ Cart <span>{cartCount}</span>
-          </button>
+            <span className="logo-icon">S</span>
+            <span>ShopSphere</span>
+          </a>
+
+          <nav className="shop-navigation">
+            <a href="#home">Home</a>
+            <a href="#products">Products</a>
+            <a href="#categories">Categories</a>
+          </nav>
+
+          <div className="header-actions">
+            <button
+              type="button"
+              className="icon-button cart-button"
+              onClick={() => setCartOpen(true)}
+              aria-label="Open shopping cart"
+            >
+              🛒
+              <span>Cart</span>
+              <span className="cart-count">{cartCount}</span>
+            </button>
+
+            {user ? (
+              <div className="user-actions">
+                <span className="welcome-user">
+                  Hi, {user.name || user.fullName || "Customer"}
+                </span>
+
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={handleLogout}
+                >
+                  Logout
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => {
+                  setAuthMode("login");
+                  setAuthOpen(true);
+                }}
+              >
+                Login
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
-      <main>
-        <section className="hero" id="home">
-          <div className="hero-content">
-            <span className="eyebrow">
-              YOUR EVERYDAY DISCOVERY STORE
-            </span>
+      {/* NOTIFICATION */}
+      {message && (
+        <div className="shop-container">
+          <div className="status-message" role="status">
+            <span>{message}</span>
 
-            <h1>
-              Find your next
-              <br />
-              <span>favorite thing.</span>
-            </h1>
-
-            <p>
-              Explore thoughtfully selected products, discover
-              great finds, and enjoy a smoother shopping experience.
-            </p>
-
-            <a href="#products" className="primary-button">
-              Explore products <span>→</span>
-            </a>
-
-            <div className="hero-stats">
-              <div>
-                <strong>{products.length}+</strong>
-                <span>Products</span>
-              </div>
-
-              <div>
-                <strong>Secure</strong>
-                <span>Checkout</span>
-              </div>
-
-              <div>
-                <strong>Easy</strong>
-                <span>Shopping</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="hero-image">
-            <img
-              src="https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1100&q=85"
-              alt="Modern shopping store"
-            />
-
-            <div className="floating-card">
-              <span className="floating-icon">✦</span>
-              <div>
-                <strong>Your next great find</strong>
-                <p>Just a click away.</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="benefits" id="benefits">
-          <div>
-            <span>🚚</span>
-            <div>
-              <strong>Easy ordering</strong>
-              <p>Simple shopping experience</p>
-            </div>
-          </div>
-
-          <div>
-            <span>🔒</span>
-            <div>
-              <strong>Secure payments</strong>
-              <p>Razorpay checkout integration</p>
-            </div>
-          </div>
-
-          <div>
-            <span>💬</span>
-            <div>
-              <strong>Simple support</strong>
-              <p>Clear order feedback</p>
-            </div>
-          </div>
-        </section>
-
-        <section className="products-section" id="products">
-          <div className="section-heading">
-            <div>
-              <span className="eyebrow">MADE FOR YOUR STYLE</span>
-              <h2>Explore our collection</h2>
-              <p>Find something you'll want to take home.</p>
-            </div>
-
-            <span className="product-count">
-              {filteredProducts.length} products
-            </span>
-          </div>
-
-          <div className="product-tools">
-            <label className="search-box">
-              <span>⌕</span>
-
-              <input
-                type="search"
-                placeholder="Search products..."
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-              />
-            </label>
-
-            <select
-              aria-label="Sort products"
-              value={sort}
-              onChange={(event) => setSort(event.target.value)}
-            >
-              <option value="featured">Featured</option>
-              <option value="low">Price: Low to high</option>
-              <option value="high">Price: High to low</option>
-              <option value="name">Name: A to Z</option>
-            </select>
-          </div>
-
-          <div className="category-list">
-            {CATEGORIES.map((item) => (
-              <button
-                key={item}
-                className={category === item ? "active" : ""}
-                onClick={() => setCategory(item)}
-              >
-                {item}
-              </button>
-            ))}
-          </div>
-
-          {loading && (
-            <div className="status-box">
-              <div className="spinner" />
-              <p>Loading your products...</p>
-            </div>
-          )}
-
-          {!loading && productError && (
-            <div className="error-box">
-              <h3>Unable to load products</h3>
-
-              <p>{productError}</p>
-
-              <p>
-                Check that Spring Boot is running on port 8080 and
-                that <code>/api/products</code> returns JSON.
-              </p>
-
-              <button
-                className="primary-button"
-                onClick={() => window.location.reload()}
-              >
-                Try again
-              </button>
-            </div>
-          )}
-
-          {!loading &&
-            !productError &&
-            filteredProducts.length === 0 && (
-              <div className="status-box">
-                <h3>No products found</h3>
-                <p>Try a different search or category.</p>
-
-                <button
-                  className="secondary-button"
-                  onClick={() => {
-                    setSearch("");
-                    setCategory("All");
-                  }}
-                >
-                  Clear filters
-                </button>
-              </div>
-            )}
-
-          {!loading && !productError && filteredProducts.length > 0 && (
-            <div className="product-grid">
-              {filteredProducts.map((product, index) => {
-                const id = getProductId(product);
-                const name = getProductName(product);
-                const price = getProductPrice(product);
-                const image = getProductImage(product);
-
-                return (
-                  <article
-                    className="product-card"
-                    key={id ?? `${name}-${index}`}
-                  >
-                    <div className="product-image">
-                      <img
-                        src={image}
-                        alt={name}
-                        loading="lazy"
-                        onError={(event) => {
-                          event.currentTarget.onerror = null;
-                          event.currentTarget.src = DEMO_IMAGES.Default;
-                        }}
-                      />
-
-                      <span className="product-tag">
-                        {product.category || "Discover"}
-                      </span>
-
-                      <button
-                        className="quick-add"
-                        onClick={() => addToCart(product)}
-                        aria-label={`Add ${name} to cart`}
-                      >
-                        +
-                      </button>
-                    </div>
-
-                    <div className="product-info">
-                      <span className="product-category">
-                        {product.category || "SHOPSPHERE COLLECTION"}
-                      </span>
-
-                      <h3>{name}</h3>
-
-                      <p className="product-description">
-                        {product.description ||
-                          "A great addition to your everyday essentials."}
-                      </p>
-
-                      <div className="product-bottom">
-                        <strong>{formatPrice(price)}</strong>
-
-                        <button
-                          onClick={() => addToCart(product)}
-                          className="add-button"
-                        >
-                          Add to cart
-                        </button>
-                      </div>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          )}
-        </section>
-      </main>
-
-      <footer className="footer">
-        <a href="#home" className="brand">
-          <span className="brand-icon">S</span>
-          <span>ShopSphere</span>
-        </a>
-
-        <p>Discover more. Shop smarter.</p>
-
-        <span>© {new Date().getFullYear()} ShopSphere</span>
-      </footer>
-
-      {notice && (
-        <div className="toast" role="status">
-          <span>{notice}</span>
-
-          <button onClick={() => setNotice("")} aria-label="Dismiss">
-            ×
-          </button>
-        </div>
-      )}
-
-      {/* Login and registration modal */}
-      {authOpen && (
-        <div
-          className="modal-overlay"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              setAuthOpen(false);
-            }
-          }}
-        >
-          <section className="auth-modal">
             <button
-              className="modal-close"
-              onClick={() => setAuthOpen(false)}
-              aria-label="Close login"
+              type="button"
+              onClick={() => setMessage("")}
+              aria-label="Dismiss message"
             >
               ×
             </button>
-
-            <div className="auth-logo">S</div>
-
-            <span className="eyebrow">WELCOME TO SHOPSPHERE</span>
-
-            <h2>
-              {authMode === "login"
-                ? "Welcome back"
-                : "Create your account"}
-            </h2>
-
-            <p className="auth-subtitle">
-              {authMode === "login"
-                ? "Log in to continue shopping."
-                : "Join us and discover your next favorite thing."}
-            </p>
-
-            <form onSubmit={submitAuth}>
-              {authMode === "register" && (
-                <label>
-                  Full name
-
-                  <input
-                    type="text"
-                    name="name"
-                    value={form.name}
-                    onChange={updateForm}
-                    placeholder="Enter your full name"
-                    autoComplete="name"
-                    required
-                  />
-                </label>
-              )}
-
-              <label>
-                Email address
-
-                <input
-                  type="email"
-                  name="email"
-                  value={form.email}
-                  onChange={updateForm}
-                  placeholder="you@example.com"
-                  autoComplete="email"
-                  required
-                />
-              </label>
-
-              <label>
-                Password
-
-                <input
-                  type="password"
-                  name="password"
-                  value={form.password}
-                  onChange={updateForm}
-                  placeholder="Enter your password"
-                  autoComplete={
-                    authMode === "login"
-                      ? "current-password"
-                      : "new-password"
-                  }
-                  minLength={6}
-                  required
-                />
-              </label>
-
-              {authError && (
-                <div className="form-error">{authError}</div>
-              )}
-
-              {authSuccess && (
-                <div className="form-success">{authSuccess}</div>
-              )}
-
-              <button
-                type="submit"
-                className="primary-button auth-submit"
-                disabled={authLoading}
-              >
-                {authLoading
-                  ? "Please wait..."
-                  : authMode === "login"
-                    ? "Log in"
-                    : "Create account"}
-              </button>
-            </form>
-
-            <p className="auth-switch">
-              {authMode === "login"
-                ? "Don't have an account?"
-                : "Already have an account?"}
-
-              <button
-                onClick={() => {
-                  setAuthMode(
-                    authMode === "login" ? "register" : "login"
-                  );
-
-                  setAuthError("");
-                  setAuthSuccess("");
-                }}
-              >
-                {authMode === "login" ? " Sign up" : " Log in"}
-              </button>
-            </p>
-          </section>
+          </div>
         </div>
       )}
 
-      {/* Shopping cart drawer */}
+      {/* HERO */}
+      <main>
+        <section className="shop-hero" id="home">
+          <div className="shop-container hero-content">
+            <div className="hero-text">
+              <span className="hero-badge">
+                ✨ Welcome to ShopSphere
+              </span>
+
+              <h1>
+                Discover Products.
+                <br />
+                <span>Love Every Purchase.</span>
+              </h1>
+
+              <p>
+                Explore quality products across electronics,
+                fashion, home essentials, beauty, and accessories.
+                Find your favorites in one place.
+              </p>
+
+              <div className="hero-actions">
+                <a href="#products" className="primary-button">
+                  Shop Now →
+                </a>
+
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setCartOpen(true)}
+                >
+                  View Cart ({cartCount})
+                </button>
+              </div>
+
+              <div className="hero-features">
+                <span>✓ Quality Products</span>
+                <span>✓ Secure Accounts</span>
+                <span>✓ Cash on Delivery</span>
+              </div>
+            </div>
+
+            <div className="hero-image">
+              <img
+                src="https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=1000"
+                alt="ShopSphere shopping collection"
+              />
+
+              <div className="hero-floating-card">
+                <span className="floating-icon">📦</span>
+
+                <div>
+                  <strong>Easy Shopping</strong>
+                  <p>Order online, pay on delivery</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* CATEGORIES */}
+        <section
+          className="shop-section categories-section"
+          id="categories"
+        >
+          <div className="shop-container">
+            <div className="section-heading">
+              <span className="section-eyebrow">
+                SHOP BY CATEGORY
+              </span>
+
+              <h2>Explore Our Collections</h2>
+
+              <p>
+                Find the products you need from your favorite
+                categories.
+              </p>
+            </div>
+
+            <div className="category-list">
+              {CATEGORIES.map((category) => (
+                <button
+                  type="button"
+                  key={category}
+                  className={
+                    selectedCategory === category
+                      ? "category-button active"
+                      : "category-button"
+                  }
+                  onClick={() => {
+                    setSelectedCategory(category);
+
+                    document
+                      .getElementById("products")
+                      ?.scrollIntoView({
+                        behavior: "smooth",
+                      });
+                  }}
+                >
+                  {category === "All" && "✨"}
+                  {category === "Electronics" && "💻"}
+                  {category === "Fashion" && "👕"}
+                  {category === "Home" && "🏠"}
+                  {category === "Beauty" && "✨"}
+                  {category === "Accessories" && "⌚"}
+
+                  <span>{category}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* PRODUCTS */}
+        <section className="shop-section products-section" id="products">
+          <div className="shop-container">
+            <div className="products-heading">
+              <div className="section-heading">
+                <span className="section-eyebrow">
+                  OUR STORE
+                </span>
+
+                <h2>Featured Products</h2>
+
+                <p>
+                  Discover products selected for your everyday needs.
+                </p>
+              </div>
+
+              <div className="product-controls">
+                <input
+                  type="search"
+                  className="search-input"
+                  placeholder="Search products..."
+                  value={search}
+                  onChange={(event) =>
+                    setSearch(event.target.value)
+                  }
+                  aria-label="Search products"
+                />
+
+                <select
+                  className="sort-select"
+                  value={sortBy}
+                  onChange={(event) =>
+                    setSortBy(event.target.value)
+                  }
+                  aria-label="Sort products"
+                >
+                  <option value="featured">Featured</option>
+                  <option value="price-low">
+                    Price: Low to High
+                  </option>
+                  <option value="price-high">
+                    Price: High to Low
+                  </option>
+                  <option value="name">Name: A to Z</option>
+                </select>
+              </div>
+            </div>
+
+            {apiWarning && (
+              <div className="api-warning">
+                {apiWarning}
+              </div>
+            )}
+
+            {loadingProducts ? (
+              <div className="loading-state">
+                <div className="loading-spinner"></div>
+                <p>Loading products...</p>
+              </div>
+            ) : filteredProducts.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-icon">🔍</div>
+
+                <h3>No products found</h3>
+
+                <p>
+                  Try a different search term or category.
+                </p>
+
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={() => {
+                    setSearch("");
+                    setSelectedCategory("All");
+                  }}
+                >
+                  Show All Products
+                </button>
+              </div>
+            ) : (
+              <div className="product-grid">
+                {filteredProducts.map((product) => (
+                  <article
+                    className="product-card"
+                    key={product.id}
+                  >
+                    <div className="product-image-wrap">
+                      <img
+                        src={product.image}
+                        alt={product.name}
+                        className="product-image"
+                        loading="lazy"
+                        onError={(event) => {
+                          event.currentTarget.onerror = null;
+                          event.currentTarget.src =
+                            DEMO_IMAGES[product.category] ||
+                            DEMO_IMAGES.Electronics;
+                        }}
+                      />
+
+                      <span className="product-category">
+                        {product.category}
+                      </span>
+                    </div>
+
+                    <div className="product-info">
+                      <h3>{product.name}</h3>
+
+                      <p className="product-description">
+                        {product.description}
+                      </p>
+
+                      <div className="product-price-row">
+                        <span className="product-price">
+                          {formatPrice(product.price)}
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        className="add-cart-button"
+                        onClick={() => addToCart(product)}
+                      >
+                        + Add to Cart
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* COD BANNER */}
+        <section className="shop-section cod-section">
+          <div className="shop-container">
+            <div className="cod-banner">
+              <div className="cod-icon">💵</div>
+
+              <div>
+                <span className="section-eyebrow">
+                  EASY CHECKOUT
+                </span>
+
+                <h2>Pay When Your Order Arrives</h2>
+
+                <p>
+                  Choose Cash on Delivery during checkout.
+                  Place your order and pay when it is delivered.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => setCartOpen(true)}
+              >
+                View My Cart →
+              </button>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      {/* FOOTER */}
+      <footer className="shop-footer">
+        <div className="shop-container footer-content">
+          <a href="#home" className="shop-logo footer-logo">
+            <span className="logo-icon">S</span>
+            <span>ShopSphere</span>
+          </a>
+
+          <p>
+            Your everyday shopping destination.
+          </p>
+
+          <span>
+            © {new Date().getFullYear()} ShopSphere. All rights
+            reserved.
+          </span>
+        </div>
+      </footer>
+
+      {/* CART DRAWER */}
       {cartOpen && (
         <div
-          className="drawer-overlay"
+          className="overlay"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) {
               setCartOpen(false);
@@ -1085,12 +1126,16 @@ function App() {
           <aside className="cart-drawer">
             <div className="drawer-header">
               <div>
-                <span className="eyebrow">YOUR SELECTION</span>
-                <h2>Shopping cart ({cartCount})</h2>
+                <h2>Your Shopping Cart</h2>
+
+                <p>
+                  {cartCount} item{cartCount !== 1 ? "s" : ""}
+                </p>
               </div>
 
               <button
-                className="modal-close"
+                type="button"
+                className="close-button"
                 onClick={() => setCartOpen(false)}
                 aria-label="Close cart"
               >
@@ -1098,96 +1143,278 @@ function App() {
               </button>
             </div>
 
-            {cart.length === 0 ? (
-              <div className="empty-cart">
-                <span>🛍️</span>
-                <h3>Your cart is empty</h3>
-                <p>Explore the collection and find something you love.</p>
+            <div className="cart-items">
+              {cart.length === 0 ? (
+                <div className="empty-state">
+                  <div className="empty-icon">🛒</div>
 
-                <button
-                  className="primary-button"
-                  onClick={() => setCartOpen(false)}
-                >
-                  Continue shopping
-                </button>
-              </div>
-            ) : (
-              <>
-                <div className="cart-items">
-                  {cart.map((item) => (
-                    <div className="cart-item" key={item.id}>
-                      <img src={item.image} alt={item.name} />
+                  <h3>Your cart is empty</h3>
 
-                      <div className="cart-item-details">
-                        <h3>{item.name}</h3>
-
-                        <strong>{formatPrice(item.price)}</strong>
-
-                        <div className="quantity-controls">
-                          <button
-                            onClick={() =>
-                              changeQuantity(item.id, -1)
-                            }
-                            aria-label="Decrease quantity"
-                          >
-                            −
-                          </button>
-
-                          <span>{item.quantity}</span>
-
-                          <button
-                            onClick={() =>
-                              changeQuantity(item.id, 1)
-                            }
-                            aria-label="Increase quantity"
-                          >
-                            +
-                          </button>
-
-                          <button
-                            className="remove-button"
-                            onClick={() => removeFromCart(item.id)}
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="cart-summary">
-                  <div className="summary-line">
-                    <span>Subtotal</span>
-                    <strong>{formatPrice(subtotal)}</strong>
-                  </div>
-
-                  <p>
-                    Final payable amount must be validated by the
-                    backend before payment.
-                  </p>
+                  <p>Add some products to get started.</p>
 
                   <button
-                    className="primary-button checkout-button"
-                    onClick={checkout}
-                    disabled={paymentLoading}
+                    type="button"
+                    className="primary-button"
+                    onClick={() => setCartOpen(false)}
                   >
-                    {paymentLoading
-                      ? "Processing..."
-                      : `Pay ${formatPrice(subtotal)}`}
+                    Continue Shopping
                   </button>
+                </div>
+              ) : (
+                cart.map((item) => (
+                  <div
+                    className="cart-item"
+                    key={item.id}
+                  >
+                    <img
+                      src={item.image}
+                      alt={item.name}
+                      onError={(event) => {
+                        event.currentTarget.onerror = null;
+                        event.currentTarget.src =
+                          DEMO_IMAGES[item.category] ||
+                          DEMO_IMAGES.Electronics;
+                      }}
+                    />
 
-                  <div className="secure-note">
-                    🔒 Checkout powered by Razorpay
+                    <div className="cart-item-info">
+                      <h3>{item.name}</h3>
+
+                      <p>{formatPrice(item.price)}</p>
+
+                      <div className="quantity-controls">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateQuantity(item.id, -1)
+                          }
+                          aria-label={`Decrease ${item.name} quantity`}
+                        >
+                          −
+                        </button>
+
+                        <span>{item.quantity}</span>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateQuantity(item.id, 1)
+                          }
+                          aria-label={`Increase ${item.name} quantity`}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="cart-item-end">
+                      <strong>
+                        {formatPrice(
+                          item.price * item.quantity
+                        )}
+                      </strong>
+
+                      <button
+                        type="button"
+                        className="remove-item"
+                        onClick={() =>
+                          removeFromCart(item.id)
+                        }
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {cart.length > 0 && (
+              <div className="cart-summary">
+                <div className="summary-row">
+                  <span>Subtotal</span>
+                  <strong>{formatPrice(subtotal)}</strong>
+                </div>
+
+                <div className="summary-row">
+                  <span>Delivery</span>
+                  <strong>Calculated by store</strong>
+                </div>
+
+                <div className="summary-row total-row">
+                  <span>Cart Total</span>
+                  <strong>{formatPrice(subtotal)}</strong>
+                </div>
+
+                <div className="payment-note">
+                  <span>💵</span>
+
+                  <div>
+                    <strong>Cash on Delivery</strong>
+                    <p>Pay when your order arrives.</p>
                   </div>
                 </div>
-              </>
+
+                <button
+                  type="button"
+                  className="checkout-button"
+                  onClick={checkout}
+                  disabled={checkoutLoading}
+                >
+                  {checkoutLoading
+                    ? "Placing Order..."
+                    : `Place COD Order · ${formatPrice(subtotal)}`}
+                </button>
+
+                <button
+                  type="button"
+                  className="continue-shopping"
+                  onClick={() => setCartOpen(false)}
+                  disabled={checkoutLoading}
+                >
+                  Continue Shopping
+                </button>
+              </div>
             )}
           </aside>
+        </div>
+      )}
+
+      {/* LOGIN / REGISTER MODAL */}
+      {authOpen && (
+        <div
+          className="overlay auth-overlay"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setAuthOpen(false);
+            }
+          }}
+        >
+          <div className="auth-modal">
+            <button
+              type="button"
+              className="close-button auth-close"
+              onClick={() => setAuthOpen(false)}
+              aria-label="Close authentication dialog"
+            >
+              ×
+            </button>
+
+            <div className="auth-logo">
+              <span className="logo-icon">S</span>
+            </div>
+
+            <h2>
+              {authMode === "login"
+                ? "Welcome Back"
+                : "Create Your Account"}
+            </h2>
+
+            <p className="auth-subtitle">
+              {authMode === "login"
+                ? "Log in to continue shopping."
+                : "Join ShopSphere and start shopping."}
+            </p>
+
+            <form
+              className="auth-form"
+              onSubmit={handleAuthSubmit}
+            >
+              {authMode === "register" && (
+                <label>
+                  Full Name
+
+                  <input
+                    type="text"
+                    name="name"
+                    placeholder="Enter your full name"
+                    value={authForm.name}
+                    onChange={handleAuthInput}
+                    required
+                    autoComplete="name"
+                  />
+                </label>
+              )}
+
+              <label>
+                Email Address
+
+                <input
+                  type="email"
+                  name="email"
+                  placeholder="Enter your email"
+                  value={authForm.email}
+                  onChange={handleAuthInput}
+                  required
+                  autoComplete="email"
+                />
+              </label>
+
+              <label>
+                Password
+
+                <input
+                  type="password"
+                  name="password"
+                  placeholder="Enter your password"
+                  value={authForm.password}
+                  onChange={handleAuthInput}
+                  required
+                  minLength={6}
+                  autoComplete={
+                    authMode === "login"
+                      ? "current-password"
+                      : "new-password"
+                  }
+                />
+              </label>
+
+              <button
+                type="submit"
+                className="checkout-button"
+                disabled={authLoading}
+              >
+                {authLoading
+                  ? "Please wait..."
+                  : authMode === "login"
+                    ? "Login"
+                    : "Create Account"}
+              </button>
+            </form>
+
+            <div className="auth-switch">
+              {authMode === "login"
+                ? "Don't have an account?"
+                : "Already have an account?"}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode(
+                    authMode === "login"
+                      ? "register"
+                      : "login"
+                  );
+
+                  setAuthForm({
+                    name: "",
+                    email: "",
+                    password: "",
+                  });
+                }}
+              >
+                {authMode === "login"
+                  ? "Register"
+                  : "Login"}
+              </button>
+            </div>
+
+            <p className="auth-security-note">
+              Your account must be authenticated by the backend.
+            </p>
+          </div>
         </div>
       )}
     </div>
   );
 }
-
-export default App;
